@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Suction Nebulizer</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; padding:16px; }
+    #page { margin:auto; width:100%; max-width:900px; }
+    .row { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+    .col { display:flex; align-items:center; gap:8px; }
+    button { padding:10px 14px; border:1px solid #ccc; border-radius:8px; background:#f6f6f6; cursor:pointer; }
+    button:hover { background:#eee; }
+    textarea { width:100%; height:60vh; font-size:7pt; }
+    input[type="text"] { width:6ch; text-align:center; }
+    .small { font-size:12px; color:#666; }
+  </style>
+</head>
+<body>
+  <div id="page">
+    <div class="row" style="margin-bottom:8px;">
+      <div class="col" style="flex:1;">
+        <button id="play" style="flex:1;">Play</button>
+      </div>
+      <div class="col" style="flex:1; justify-content:flex-end;">
+        <button id="step" style="flex:1;">Step</button>
+      </div>
+    </div>
+
+    <div class="row" style="margin-bottom:8px;">
+      <div class="col">
+        <button id="scorebtn">mistake</button>
+        <input id="score" type="text" value="0" read-only>
+      </div>
+      <div class="col">
+        <input type="checkbox" id="soundCheckbox" checked>
+        <label for="soundCheckbox">sound</label>
+        <span class="small" id="status"></span>
+      </div>
+    </div>
+  </br>
+    <div id="txtarea">
+      <textarea id="textArea">
+review chart and mar
+! hand hygiene
+veralize ppe
+introduce self
+*** verify patient bracelet to mar, name dob mrn
+verify allergies
+inform patient of intent
+get consent
+ask about health status
+ask about symptoms and main complaint
+ask about last meds time and affect
+take vitals: RR, HR, T, O2, BP
+pain assessment
+check level of conciousness
+check skin for pallor and cyanosis
+check congestion
+check accessory muscles and retractions
+review previous pram
+! auscultate 6 areas anterior and posterior
+note air entry qualities
+note adventitious sounds
+recommend suctioning
+place child in semi fowlers
+state possible options, blanket roll, o2 if under 92%
+allow for questions, reassure patient
+determine suction cath size (8 to 10)
+offer parent to support child
+! turn on section set to 100 to 120 (over 1 year)
+attach catheter to suction hose
+! measure catheter depth tip of nose to earlobe
+dip catheter in water to lube
+insert catheter into nose WITHOUT SUCTION
+apply suction and twiddle catheter out over 5 to 10 seconds
+verbalize no more than 3 times per nare
+note secretion: amount color consistency
+inform family will return with medication
+! leave room, hand hygiene
+select medication from supplies based on mar
+compare label with mar
+calculate safe dose based on weight
+*** 6 rights with mar
+   patient
+   medication (med with mar)
+   dose (cheo guidelines)
+   time and interval
+   route
+   reason
+*** compare dose to safe guideline for weight
+! return to patient, hand hygiene
+bring all equipment (mar, drug)
+inform family of drug, reason, side effects
+allow questions
+encourage to call for side effects
+*** 6 rights with mar and patient
+   patient (2 identifiers with mar and bracelet)
+   date and time
+   route
+   site
+   dose
+place child vertical
+put entire dose into nebulizer chamber
+set oxygen to 6 to 8 lpm (ensure misting)
+verbalize when medication is done mist will stop
+verbalize will return 15 to 20 min when done to reassess
+leave with hand hygiene
+state 15 to 20 min have passed
+return to reassess with hand hygiene
+check vitals: RR, HR, O2
+check congestion
+check assessory muscles and retractions
+auscultate 6 areas anterior and posterior
+note quality of air entry
+note adventitious sounds
+verbalize medication was effective
+leave room and perform hand hygiene
+      </textarea>
+    </div>
+  </div>
+
+  <audio id="ttsAudio" preload="auto"></audio>
+
+  <script>
+    // Replace with your Worker URL:
+    const WORKER_URL = "https://postpartum-tts.chris8331.workers.dev/api/tts"; 
+    const VOICE = "en-US-JennyNeural";
+    const FORMAT = "audio-24khz-48kbitrate-mono-mp3";
+
+    let lines = [];
+    let index = 0;
+    let playing = false;
+
+    const playBtn = document.getElementById("play");
+    const stepBtn = document.getElementById("step");
+    const scoreBtn = document.getElementById("scorebtn");
+    const scoreInput = document.getElementById("score");
+    const textArea = document.getElementById("textArea");
+    const soundCheckbox = document.getElementById("soundCheckbox");
+    const audioEl = document.getElementById("ttsAudio");
+    const statusEl = document.getElementById("status");
+
+    function setStatus(msg) { statusEl.textContent = msg || ""; }
+
+    async function speak(text) {
+      if (!soundCheckbox.checked || !text.trim()) return;
+
+      // Try Cloud TTS
+      try {
+        setStatus("cloud TTS…");
+        const res = await fetch(WORKER_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, voice: VOICE, format: FORMAT })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const blob = await res.blob();
+        if (blob.size < 2000) throw new Error("Empty audio");
+        audioEl.src = URL.createObjectURL(blob);
+        await audioEl.play();
+        setStatus("");
+        return; // success
+      } catch (err) {
+        console.warn("Cloud TTS failed, falling back:", err);
+        setStatus("cloud TTS failed → local voice");
+      }
+
+      // Fallback: browser speechSynthesis
+      try {
+        const utter = new SpeechSynthesisUtterance(text);
+        const voices = speechSynthesis.getVoices();
+        utter.voice = voices.find(v => v.lang === "en-US") || voices.find(v => v.lang.startsWith("en")) || null;
+        utter.rate = 1.0;
+        utter.pitch = 1.0;
+        speechSynthesis.speak(utter);
+      } catch (err) {
+        console.error("Local TTS also failed:", err);
+        setStatus("all TTS failed");
+      }
+    }
+
+    playBtn.addEventListener("click", function() {
+      if (playing) return;
+      playing = true;
+      lines = textArea.value.split("\n");
+      textArea.value = "";
+      index = 0;
+      playLines();
+    });
+
+    stepBtn.addEventListener("click", function() {
+      if (index === 0) {
+        lines = textArea.value.split("\n");
+        textArea.value = "";
+      }
+      if (index <= lines.length && index !== 0) {
+        const line = lines[index - 1];
+        textArea.value += line + "\n";
+        textArea.scrollTop = textArea.scrollHeight;
+        speak(line);
+      }
+      index++;
+    });
+
+    scoreBtn.addEventListener("click", function() {
+      scoreInput.value = parseInt(scoreInput.value, 10) + 1;
+      textArea.value += "*** ^ ***\n";
+    });
+
+    function playLines() {
+      if (index >= lines.length) {
+        playing = false;
+        return;
+      }
+      const line = lines[index];
+      textArea.value += line + "\n";
+      textArea.scrollTop = textArea.scrollHeight;
+      speak(line);
+      index++;
+      setTimeout(playLines, 3000);
+    }
+  </script>
+</body>
+</html>
